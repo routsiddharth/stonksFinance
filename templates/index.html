@@ -1,0 +1,72 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Home
+{% endblock %}
+
+{% block main %}
+
+    <h1>Quick Actions</h1>
+
+    <div class="row">
+        <div class="column">
+            <h2>Buy Shares</h2>
+
+            <form action="/buy" method="post" style="margin-bottom: 40px;">
+                <div class="form-group">
+                    <input autocomplete="off" autofocus class="form-control" name="symbol" placeholder="Ticker eg. NFLX" type="text">
+                </div>
+                <div class="form-group">
+                    <input name="shares" type="number" placeholder="Shares" min="1" autocomplete="off">
+                </div>
+                <button class="btn btn-primary" type="submit">Submit Order</button>
+            </form>
+        </div>
+        <div class="column">
+            <h2>Sell Shares</h2>
+
+            <form action="/sell" method="post" style="margin-bottom: 40px;">
+                <div class="form-group">
+                    <input autocomplete="off" autofocus class="form-control" name="symbol" placeholder="Ticker eg. NFLX" type="text">
+                </div>
+                <div class="form-group">
+                    <input name="shares" type="number" placeholder="Shares" min="1" autocomplete="off">
+                </div>
+                <button class="btn btn-primary" type="submit">Submit Order</button>
+            </form>
+        </div>
+    </div>
+
+    <h1>{{ username }}'s portfolio</h1>
+
+    <div style="margin: auto; width: 60%;">
+        <table class="table-striped table-bordered">
+            <thead>
+                <tr>
+                    <th>Ticker</th>
+                    <th>Shares</th>
+                    <th>Average Open</th>
+                    <th>Current Price per Share</th>
+                    <th>Holding Size</th>
+                    <th>Profit / Loss</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for stock in portfolio %}
+                    <tr>
+                        <td>{{ stock.ticker }}</td>
+                        <td>{{ stock.shares }}</td>
+                        <td>{{ stock.buy_price | usd }}</td>
+                        <td>{{ stock.current_price | usd }}</td>
+                        <td>{{ (stock.current_price * stock.shares) | usd}}</td>
+                        <td>{{ stock.pl }}%</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <h3 style="margin-top: 40px;">Remaining Balance: {{ cash | usd }}</h3>
+        <h2 style="margin-top: 40px;">Total Holdings: {{ totalHoldings | usd}}</h2>
+
+    </div>
+{% endblock %}

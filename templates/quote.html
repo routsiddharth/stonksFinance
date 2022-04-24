@@ -1,0 +1,43 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Quote
+{% endblock %}
+
+{% block main %}
+
+    <h1>Request Quote</h1>
+
+    <div style="margin: auto; width: 55%;">
+        <form action="/quote" method="post" style="margin-bottom: 40px;">
+            <div class="form-group">
+                <input autocomplete="off" autofocus class="form-control" name="symbol" placeholder="Ticker eg. NFLX" type="text">
+            </div>
+            <div class="form-group">
+                <input style="width: 250px" autocomplete="off" autofocus class="form-control" name="timeframe" placeholder="Timeframe (days) eg. 30" type="number" min="1" max="1000">
+            </div>
+            <button class="btn btn-primary" type="submit">Search</button>
+        </form>
+
+        <div class="row">
+            <div class="column left">
+                <h3>{{ values["ticker"] }}</h3>
+            </div>
+            <div class="column right">
+                <h2>{{ values["price"] | usd }}</h2>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="column left">
+                <h5>{{ values["company"] }}</h5>
+            </div>
+            <div class="column right">
+                <h5>{{ values["marketCap"] }}</h5>
+            </div>
+        </div>
+
+        <div class="row">
+            <img src="/plot.png" alt="my plot">
+        </div>
+{% endblock %}

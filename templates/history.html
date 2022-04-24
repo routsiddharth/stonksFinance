@@ -1,0 +1,38 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    History
+{% endblock %}
+
+CREATE TABLE transactions (id INTEGER, type TEXT, ticker TEXT, shares INTEGER, time TEXT, share_price NUMERIC, transaction_price NUMERIC);
+
+{% block main %}
+
+    <h1>History</h1>
+
+    <div style="margin: auto; width: 60%;">
+        <table class="table-striped table-bordered">
+            <thead>
+                <th>Ticker</th>
+                <th>Type</th>
+                <th>Shares</th>
+                <th>Share Price</th>
+                <th>Transaction Price</th>
+                <th>Time</th>
+            </thead>
+            <tbody>
+                {% for transaction in transactions %}
+                    <tr>
+                        <td>{{ transaction.ticker }}</td>
+                        <td>{{ transaction.type }}</td>
+                        <td>{{ transaction.shares }}</td>
+                        <td>{{ transaction.share_price }}</td>
+                        <td>{{ transaction.transaction_price }}</td>
+                        <td>{{ transaction.time }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+{% endblock %}
