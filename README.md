@@ -13,11 +13,17 @@ Alternatively, you can download the code and run it locally.
 ![Homepage](https://i.imgur.com/tfjHLPm.png)
 Buy and sell stocks, view your portfolio and its value
 
+
+
 ![Request Quote](https://i.imgur.com/zw8NxWX.png)
 Request price quote, market cap, and customised price graph
 
+
+
 ![Transaction History](https://i.imgur.com/K66j7aj.png)
 View transaction history
+
+
 
 ## Contributing
 Pull requests are welcome.
