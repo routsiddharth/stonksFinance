@@ -1,9 +1,8 @@
-import os
 import io
 import requests
 import time
 import matplotlib
-import logging
+import sqlite3
 
 # Used solution from https://stackoverflow.com/a/2267304/14685194 to prevent DEBUG messages
 # logging.basicConfig(level=logging.ERROR)
@@ -37,9 +36,37 @@ app.config["SESSION_PERMANENT"] = False
 app.config["SESSION_TYPE"] = "filesystem"
 Session(app)
 
+con = sqlite3.connect("finance.db", check_same_thread=False)
+con.row_factory = sqlite3.Row
 
-db = SQL("sqlite:///finance.db")
+cur = con.cursor()
+
 API_KEY = "pk_320446f105ef4f87839c51ec067b323d"
+
+
+def reformat(data, type):
+    if type == "users":
+        columns = ["id", "username", "hash", "cash"]
+    elif type == "transactions":
+        columns = ["id", "type", "ticker", "shares", "time", "share_price", "transaction_price"]
+    else:
+        columns = ["ticker", "shares", "buy_price", "current_price", "pl"]
+
+    returned = []
+
+    for line in data:
+
+        d = {}
+
+        for i in range(len(line)):
+            try:
+                d[columns[i]] = round(line[i], 2)
+            except:
+                d[columns[i]] = line[i]
+
+        returned.append(d)
+
+    return returned
 
 
 @app.route("/")
@@ -48,8 +75,9 @@ def index():
 
     user = session['user_id']
 
-    username = db.execute(f"SELECT * FROM users WHERE id = {user};")[0]["username"]
-    portfolio = db.execute(f"SELECT * FROM owned{user};")
+    username = reformat(cur.execute(f"SELECT * FROM users WHERE id = {user};"), "users")[0]["username"]
+    portfolio = reformat(cur.execute(f"SELECT * FROM owned{user};"), "owned")
+
 
     totalHoldings = 0
 
@@ -68,14 +96,14 @@ def index():
         buyPrice = float(stock['buy_price'])
         pl = round((currentPrice - buyPrice)/buyPrice * 100, 2)
 
-        db.execute(f"UPDATE owned{user} SET current_price = {currentPrice}, pl = {pl} WHERE ticker = '{ticker}';")
+        cur.execute(f"UPDATE owned{user} SET current_price = {currentPrice}, pl = {pl} WHERE ticker = '{ticker}';")
 
         # Calculate total holdings size
         shares = int(stock['shares'])
         totalHoldings += shares * currentPrice
 
-    portfolio = db.execute(f"SELECT * FROM owned{user} ORDER BY ticker;")
-    cash = db.execute(f"SELECT * FROM users WHERE id = {user}")[0]["cash"]
+    portfolio = reformat(cur.execute(f"SELECT * FROM owned{user} ORDER BY ticker;"), "owned")
+    cash = reformat(cur.execute(f"SELECT * FROM users WHERE id = {user}"), "users")[0]["cash"]
 
     totalHoldings += cash
 
@@ -107,29 +135,29 @@ def buy():
 
         sharePrice = float(response["latestPrice"])
         price = round(sharePrice*shares, 2)
-        balance = db.execute(f"SELECT cash FROM users WHERE id = {user};")[0]["cash"]
+        balance = reformat(cur.execute(f"SELECT * FROM users WHERE id = {user};"), "users")[0]["cash"]
 
         if price > balance:
             return apology("Not enough balance")
 
-        response = db.execute(f"SELECT * FROM owned{user} WHERE ticker = '{ticker}'")
+        response = reformat(cur.execute(f"SELECT * FROM owned{user} WHERE ticker = '{ticker}'"), "owned")
 
         if response == []:
-            db.execute(
+            cur.execute(
                 f"INSERT INTO owned{user} (ticker, shares, buy_price, current_price, pl) VALUES ('{ticker}', {shares}, {sharePrice}, {sharePrice}, 0);")
 
         else:
 
-            previousAvg = db.execute(f"SELECT * FROM owned{user} WHERE ticker = '{ticker}'")[0]["buy_price"]
-            previousOwned = db.execute(f"SELECT * FROM owned{user} WHERE ticker = '{ticker}'")[0]["shares"]
+            previousAvg = reformat(cur.execute(f"SELECT * FROM owned{user} WHERE ticker = '{ticker}'"), "owned")[0]["buy_price"]
+            previousOwned = reformat(cur.execute(f"SELECT * FROM owned{user} WHERE ticker = '{ticker}'"), "owned")[0]["shares"]
 
             avgOpen = round((previousAvg * previousOwned + price) / (previousOwned + shares), 2)
 
-            db.execute(
-                f"UPDATE owned{user} SET shares = (SELECT shares FROM owned{user} WHERE ticker = '{ticker}') + {shares}, buy_price = {avgOpen} WHERE ticker = '{ticker}';")
+            cur.execute(
+                f"UPDATE owned{user} SET shares = (SELECT * FROM owned{user} WHERE ticker = '{ticker}') + {shares}, buy_price = {avgOpen} WHERE ticker = '{ticker}';")
 
-        db.execute(f"UPDATE users SET cash = {balance - price} WHERE id = {user}")
-        db.execute(
+        cur.execute(f"UPDATE users SET cash = {balance - price} WHERE id = {user}")
+        cur.execute(
             f"INSERT INTO transactions (id, type, ticker, shares, time, share_price, transaction_price) VALUES ({user}, 'buy', '{ticker}', {shares}, '{str(time.ctime())}', {sharePrice}, {price});")
 
         return redirect("/")
@@ -143,7 +171,7 @@ def buy():
 def history():
 
     user = session["user_id"]
-    userHistory = db.execute(f"SELECT * FROM transactions WHERE id = {user}")[::-1]
+    userHistory = reformat(cur.execute(f"SELECT * FROM transactions WHERE id = {user}"), "transactions")[::-1]
 
     return render_template("history.html", transactions=userHistory)
 
@@ -163,7 +191,9 @@ def login():
         if not username or not password:
             return apology("Please enter a valid username and password")
 
-        rows = db.execute(f"SELECT * FROM users WHERE username = '{username}'")
+        rows = reformat(cur.execute(f"SELECT * FROM users WHERE username = '{username}'"), "users")
+
+        print(rows)
 
         if len(rows) != 1 or not check_password_hash(rows[0]["hash"], password):
             return apology("Invalid username and/or password")
@@ -288,16 +318,16 @@ def register():
         if password != confirmation:
             return apology("Password and confirmation do not match")
 
-        existing = db.execute(f"SELECT * FROM users WHERE username = '{username}';")
+        existing = reformat(cur.execute(f"SELECT * FROM users WHERE username = '{username}';"), "users")
 
         if existing != []:
             return apology("An account with this username already exists")
 
         passwordhash = generate_password_hash(password)
-        db.execute(f"INSERT INTO users (username, hash) VALUES ('{username}', '{passwordhash}');")
-        user_id = db.execute(f"SELECT * FROM users WHERE username = '{username}';")[0]["id"]
+        cur.execute(f"INSERT INTO users (username, hash) VALUES ('{username}', '{passwordhash}');")
+        user_id = reformat(cur.execute(f"SELECT * FROM users WHERE username = '{username}';"), "users")[0]["id"]
 
-        db.execute(
+        cur.execute(
             f"CREATE TABLE owned{user_id} (ticker TEXT, shares INTEGER, buy_price NUMERIC, current_price NUMERIC, pl NUMERIC)")
         return redirect("/login")
 
@@ -321,7 +351,7 @@ def sell():
         if not ticker or not shares:
             return apology("Please enter a valid stock ticker and a positive amount of shares")
 
-        response = db.execute(f"SELECT * FROM owned{user} WHERE ticker = '{ticker}' AND shares >= {shares}")
+        response = reformat(cur.execute(f"SELECT * FROM owned{user} WHERE ticker = '{ticker}' AND shares >= {shares}"), "owned")
 
         if response == []:
             return apology(f"You do not have enough shares of {ticker} to sell")
@@ -334,15 +364,15 @@ def sell():
         value = round(shares * sharePrice, 2)
 
         if ownedShares == shares:
-            db.execute(f"DELETE FROM owned{user} WHERE ticker = '{ticker}';")
+            cur.execute(f"DELETE FROM owned{user} WHERE ticker = '{ticker}';")
         else:
-            db.execute(
+            cur.execute(
                 f"UPDATE owned{user} SET shares = {ownedShares - shares}, current_price = {sharePrice} WHERE ticker == '{ticker}';")
 
-        cash = db.execute(f"SELECT cash FROM users WHERE id = {user};")[0]["cash"]
+        cash = reformat(cur.execute(f"SELECT * FROM users WHERE id = {user};"), "users")[0]["cash"]
 
-        db.execute(f"UPDATE users SET cash = {round(cash + value, 2)} WHERE id = {user};")
-        db.execute(
+        cur.execute(f"UPDATE users SET cash = {round(cash + value, 2)} WHERE id = {user};")
+        cur.execute(
             f"INSERT INTO transactions (id, type, ticker, shares, time, share_price, transaction_price) VALUES ({user}, 'sell', '{ticker}', {shares}, '{str(time.ctime())}', {sharePrice}, {value});")
 
         return redirect("/")
@@ -358,14 +388,14 @@ def users():
 
     if request.method == "POST":
         username = request.form.get("username").lower()
-        response = db.execute(f"SELECT * FROM users WHERE username = '{username}';")
+        response = reformat(cur.execute(f"SELECT * FROM users WHERE username = '{username}';"), "users")
 
         if len(response) != 1:
             return apology("User doesn't exist")
 
         user_id = response[0]["id"]
 
-        transactions = list(db.execute(f"SELECT COUNT(*) FROM owned{user_id};")[0].values())[0]
+        transactions = reformat(cur.execute(f"SELECT * FROM owned{user_id};"), "owned")
 
         return render_template("userinfo.html", user=response[0], transactions=transactions)
 
