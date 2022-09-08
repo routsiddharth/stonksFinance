@@ -4,7 +4,7 @@ Stonks is a web application which allows users to buy and sell stocks using virt
 
 ## Usage
 
-You can use the website [here](http://routsiddharth.pythonanywhere.com) or you can download the code and run it locally.
+You can use the website [here](http://siddharthrout.pythonanywhere.com) or you can download the code and run it locally.
 
 ### Dependencies
 - Flask
