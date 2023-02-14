@@ -1,4 +1,5 @@
 import io
+import os
 import requests
 import time
 import matplotlib
@@ -7,9 +8,8 @@ import sqlite3
 # Used solution from https://stackoverflow.com/a/2267304/14685194 to prevent DEBUG messages
 # logging.basicConfig(level=logging.ERROR)
 
-from cs50 import SQL
 from flask import Flask, flash, redirect, render_template, request, session, Response
-from flask_session import Session
+from flask_session.__init__ import Session
 from tempfile import mkdtemp
 from werkzeug.exceptions import default_exceptions, HTTPException, InternalServerError
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -36,12 +36,47 @@ app.config["SESSION_PERMANENT"] = False
 app.config["SESSION_TYPE"] = "filesystem"
 Session(app)
 
-con = sqlite3.connect("finance.db", check_same_thread=False)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+db_path = os.path.join(BASE_DIR, "finance.db")
+
+con = sqlite3.connect(db_path, check_same_thread=False)
 con.row_factory = sqlite3.Row
 
 cur = con.cursor()
 
 API_KEY = "pk_320446f105ef4f87839c51ec067b323d"
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    """Log user in"""
+
+    # Forget any user_id
+    session.clear()
+
+    if request.method == "POST":
+
+        username = request.form.get("username").lower()
+        password = request.form.get("password")
+
+        if not username or not password:
+            return apology("Please enter a valid username and password")
+
+        # Reformat() function changes the output format of the cursor.execute() function
+
+        rows = reformat(cur.execute(f"SELECT * FROM users WHERE username = '{username}'"), "users")
+
+        print(rows)
+
+        if len(rows) != 1 or not check_password_hash(rows[0]["hash"], password):
+            return apology("Invalid username and/or password")
+
+        session["user_id"] = rows[0]["id"]
+
+        return redirect("/")
+
+    else:
+        return render_template("login.html")
+
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
@@ -75,36 +110,6 @@ def register():
         return render_template("register.html")
 
 
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    """Log user in"""
-
-    # Forget any user_id
-    session.clear()
-
-    if request.method == "POST":
-
-        username = request.form.get("username").lower()
-        password = request.form.get("password")
-
-        if not username or not password:
-            return apology("Please enter a valid username and password")
-
-        rows = reformat(cur.execute(f"SELECT * FROM users WHERE username = '{username}'"), "users")
-
-        print(rows)
-
-        if len(rows) != 1 or not check_password_hash(rows[0]["hash"], password):
-            return apology("Invalid username and/or password")
-
-        session["user_id"] = rows[0]["id"]
-
-        return redirect("/")
-
-    else:
-        return render_template("login.html")
-
-
 @app.route("/")
 @login_required
 def index():
@@ -114,14 +119,14 @@ def index():
     username = reformat(cur.execute(f"SELECT * FROM users WHERE id = {user};"), "users")[0]["username"]
     portfolio = reformat(cur.execute(f"SELECT * FROM owned{user};"), "owned")
 
-
     totalHoldings = 0
 
     for stock in portfolio:
 
         # Update stock price
         ticker = stock['ticker']
-
+        
+        # This was a ticker I used to test the functions without constantly requesting from API
         if ticker == "AAAA":
             currentPrice = 28
 
@@ -142,6 +147,14 @@ def index():
     cash = reformat(cur.execute(f"SELECT * FROM users WHERE id = {user}"), "users")[0]["cash"]
 
     totalHoldings += cash
+
+    assets = cash
+
+    for stock in portfolio:
+        value = stock["shares"] * stock["current_price"]
+        assets = assets + value
+
+    cur.execute(f"UPDATE users SET assets = {assets} WHERE id = {user}")
 
     return render_template("index.html", username=username, portfolio=portfolio, cash=cash, totalHoldings=totalHoldings)
 
@@ -279,7 +292,7 @@ def buy():
             avgOpen = round((previousAvg * previousOwned + price) / (previousOwned + shares), 2)
 
             cur.execute(
-                f"UPDATE owned{user} SET shares = (SELECT * FROM owned{user} WHERE ticker = '{ticker}') + {shares}, buy_price = {avgOpen} WHERE ticker = '{ticker}';")
+                f"UPDATE owned{user} SET shares = (SELECT shares FROM owned{user} WHERE ticker = '{ticker}') + {shares}, buy_price = {avgOpen} WHERE ticker = '{ticker}';")
 
         cur.execute(f"UPDATE users SET cash = {balance - price} WHERE id = {user}")
         cur.execute(
@@ -385,7 +398,6 @@ def users():
 
             cur.execute(f"UPDATE owned{user_id} SET current_price = {currentPrice}, pl = {pl} WHERE ticker = '{ticker}';")
 
-
         owned = reformat(cur.execute(f"SELECT * FROM owned{user_id};"), "owned")
 
         # When passed into the template, variable is called transactions but it isn't transactions!
@@ -398,7 +410,7 @@ def users():
 
 def reformat(data, type):
     if type == "users":
-        columns = ["id", "username", "hash", "cash"]
+        columns = ["id", "username", "hash", "cash", "assets"]
     elif type == "transactions":
         columns = ["id", "type", "ticker", "shares", "time", "share_price", "transaction_price"]
     else:
