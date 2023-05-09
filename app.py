@@ -48,7 +48,6 @@ API_KEY = "pk_320446f105ef4f87839c51ec067b323d"
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
-    """Log user in"""
 
     # Forget any user_id
     session.clear()
@@ -434,7 +433,6 @@ def reformat(data, type):
 
 
 def errorhandler(e):
-    """Handle error"""
     if not isinstance(e, HTTPException):
         e = InternalServerError()
     return apology(e.name, e.code)
